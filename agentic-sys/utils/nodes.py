@@ -1,14 +1,20 @@
 from typing import Literal
-from langgraph.graph import StateGraph, START, END, Send
-from langgraph.types import interrupt, Command, RetryPolicy
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import interrupt, Command, RetryPolicy, Send
 from langchain_openai import ChatOpenAI
 from langchain.messages import HumanMessage, SystemMessage
 from pathlib import Path
 from config import *
 from state import *
-from pydantic import BaseModel, Field
+
+def checkpoint(message: str) -> None:
+    """Print a flushed CLI checkpoint for long-running graph execution."""
+
+    print(f"[checkpoint] {message}", flush=True)
+
 
 # TODO: EDIT MODEL API
+checkpoint("Initializing LLM clients")
 llm = ChatOpenAI(
     api_key=API_KEY,
     base_url="https://aitta-api.csc.fi/openai/v1",
@@ -28,8 +34,12 @@ judge_llm = ChatOpenAI(
 )
 
 # System prompt of the feedback AI sys
-FEEDBACK_SYSTEM_PROMPT_PATH = Path(__file__).with_name("----") # TODO: EDIT THE FILE NAME
-JUDGE_SYSTEM_PROMPT_PATH = Path(__file__).with_name("----") # TODO: EDIT THE FILE NAME
+# TODO: EDIT BOTH FILE CONTENT
+checkpoint("-----------------")
+checkpoint("Retrieving system prompts")
+FEEDBACK_SYSTEM_PROMPT_PATH = Path(__file__).with_name("feedback_sys_prompt.txt") 
+checkpoint(FEEDBACK_SYSTEM_PROMPT_PATH)
+JUDGE_SYSTEM_PROMPT_PATH = Path(__file__).with_name("judge_sys_prompt.txt") 
 
 # ----------------------------
 # functions
@@ -69,6 +79,8 @@ def unique_personas(
 def generate_student_personas(state: GraphState) -> dict:
     """Generate three personas and avoid previously used persona types."""
 
+    checkpoint("-----------------")
+    checkpoint("Node start: generate student personas")
     generator = llm.with_structured_output(PersonasGroup)
     used_signatures = set(state.get("used_persona_signatures", []))
     prior_personas = "\n".join(sorted(used_signatures)) or "None yet."
@@ -76,6 +88,7 @@ def generate_student_personas(state: GraphState) -> dict:
     accepted: list[StudentPersonas] = []
     number_of_attempts = 5
     for attempt in range(number_of_attempts):
+        checkpoint(f"Generating student personas, attempt {attempt + 1}/{number_of_attempts}")
         prompt = f"""
         Generate exactly three student personas that can be encountered at a typical classroom
 
@@ -90,7 +103,10 @@ def generate_student_personas(state: GraphState) -> dict:
         three shy visual learners or three highly motivated high achievers.
         """
         generated = generator.invoke(prompt)
+        checkpoint(f"Generated {len(generated.groups)} persona candidates")
         accepted = unique_personas(generated.groups, used_signatures)
+        checkpoint(f"Accepted {len(accepted)} unique persona candidates")
+
         if len(accepted) == number_of_attempts:
             break
 
@@ -103,6 +119,7 @@ def generate_student_personas(state: GraphState) -> dict:
         )
 
     new_signatures = [persona_signature(persona) for persona in accepted]
+    checkpoint("Node complete: generate_student_personas")
     return {
         "personas": accepted,
         "used_persona_signatures": state.get("used_persona_signatures", []) + new_signatures,
@@ -142,6 +159,9 @@ def route_personas_to_agents(state: GraphState) -> list[Send]:
 def answer_as_student_persona(state: PersonaWorkerState) -> dict:
     """Answer the question while acting as one student persona."""
 
+    checkpoint("-----------------")
+    checkpoint(f"Node start: {state.get('agent_name', 'student_agent')}")
+
     student = state["student"]
     subjects = ", ".join(state.get("subject", [])) or "general classwork"
 
@@ -170,7 +190,9 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
         ),
     ]
 
+
     answer = llm.invoke(messages).content
+    checkpoint(f"Answer LLM complete for {state.get('agent_name', 'student_agent')}")
 
     qna_result: QnAState = {
         "question": state["question"],
@@ -194,6 +216,8 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
 def aggregate_qna_results(state: GraphState) -> dict:
     """Create a readable final response from all persona answers."""
 
+    checkpoint("-----------------")
+    checkpoint("Node start: aggregate_qna_results")
     sections = []
     for index, item in enumerate(state["qna_results"], start=1):
         student = item["student"]
@@ -214,6 +238,7 @@ def aggregate_qna_results(state: GraphState) -> dict:
             f"Answer:\n{qna['answer']}"
         )
 
+    checkpoint("Node complete: aggregate_qna_results")
     return {"final_response": "\n\n".join(sections)}
 
 
@@ -232,10 +257,14 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
     It does not receive persona
     """
 
+    checkpoint("-----------------")
+    checkpoint("Node start: evaluate_answers_against_ground_truth")
+
     system_prompt = load_feedback_system_prompt()
     evaluated_results: list[aggQnAState] = []
 
-    for item in state["qna_results"]:
+    for index, item in enumerate(state["qna_results"], start=1):
+        checkpoint(f"Evaluating answer {index}/{len(state['qna_results'])}")
         student = item["student"]
         qna = item["qna_result"]
 
@@ -259,6 +288,7 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
                     ),
                 ]
             ).content
+            checkpoint(f"Feedback LLM complete for answer {index}")
 
         evaluated_qna: QnAState = {
             "question": qna["question"],
@@ -274,17 +304,23 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
                 "qna_result": evaluated_qna,
             }
         )
+    checkpoint("Node complete: evaluate_answers_against_ground_truth")
 
     return {"evaluated_qna_results": evaluated_results}
 
+
 def judge_feedback_quality(state: GraphState) -> dict:
     """Judge how well the feedback LLM responded, scoring feedback from 1 to 10."""
+
+    checkpoint("-----------------")
+    checkpoint("Node start: judge_feedback_quality")
 
     judge = judge_llm.with_structured_output(FeedbackJudgeResult)
     judged_results: list[aggQnAState] = []
     results = state.get("evaluated_qna_results") or state["qna_results"]
 
-    for item in results:
+    for index, item in enumerate(results, start=1):
+        checkpoint(f"Judging feedback {index}/{len(results)}")
         student = item["student"]
         qna = item["qna_result"]
 
@@ -294,6 +330,7 @@ def judge_feedback_quality(state: GraphState) -> dict:
 
         judge_result = None
         if qna.get("feedback"):
+            # TODO: CHANGE TO THE NEWER SYSTEM PROMPT AFTER EVALUATING WHICH ONE 
             judge_result = judge.invoke(
                 [
                     SystemMessage(
@@ -323,6 +360,7 @@ def judge_feedback_quality(state: GraphState) -> dict:
                     ),
                 ]
             )
+            checkpoint(f"Judge LLM complete for feedback {index}")
 
         judged_qna: QnAState = {
             "question": qna["question"],
@@ -338,7 +376,7 @@ def judge_feedback_quality(state: GraphState) -> dict:
                 "qna_result": judged_qna,
             }
         )
-
+    checkpoint("Node complete: judge_feedback_quality")
     return {"evaluated_qna_results": judged_results}
 
 
@@ -346,6 +384,8 @@ def judge_feedback_quality(state: GraphState) -> dict:
 def build_graph():
     """Build and compile the full LangGraph workflow."""
 
+    checkpoint("-----------------")
+    checkpoint("Building LangGraph workflow")
     workflow = StateGraph(GraphState)
 
     # step 1: generate the personas
@@ -377,13 +417,20 @@ def build_graph():
     workflow.add_edge("judge_feedback_quality", "aggregate_qna_results")
     workflow.add_edge("aggregate_qna_results", END)
 
-    return workflow.compile()
+    compiled_graph = workflow.compile()
+    checkpoint("LangGraph workflow compiled")
 
+    return compiled_graph
 
 student_characteristics_graph = build_graph()
 
+def save_graph_visualization(path: str = "outputs/student_characteristics_graph.png") -> None:
+    png_bytes = student_characteristics_graph.get_graph().draw_mermaid_png()
+    Path(path).write_bytes(png_bytes)
+
 
 if __name__ == "__main__":
+    checkpoint("CLI run started")
     example_state = {
         "question": "Why is a for loop useful in Python?",
         "subject": ["introductory Python programming"],
@@ -401,3 +448,4 @@ if __name__ == "__main__":
 
     # Reuse this list in later calls to avoid regenerating the same persona types.
     already_used = result["used_persona_signatures"]
+    checkpoint("CLI run finished")
