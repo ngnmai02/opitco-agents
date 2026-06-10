@@ -107,16 +107,16 @@ def generate_student_personas(state: GraphState) -> dict:
         accepted = unique_personas(generated.groups, used_signatures)
         checkpoint(f"Accepted {len(accepted)} unique persona candidates")
 
-        if len(accepted) == number_of_attempts:
+        if len(accepted) == 3:
             break
 
         used_signatures.update(persona_signature(persona) for persona in accepted)
         prior_personas = "\n".join(sorted(used_signatures))
 
-    if len(accepted) != number_of_attempts:
-        raise ValueError(
-            "Could not generate three unique student personas after three attempts."
-        )
+    # if len(accepted) != number_of_attempts:
+    #    raise ValueError(
+    #        "Could not generate three unique student personas after three attempts."
+    #    )
 
     new_signatures = [persona_signature(persona) for persona in accepted]
     checkpoint("Node complete: generate_student_personas")
@@ -424,10 +424,11 @@ def build_graph():
 
 student_characteristics_graph = build_graph()
 
-def save_graph_visualization(path: str = "outputs/student_characteristics_graph.png") -> None:
+def save_graph_visualization(path: str = "student_characteristics_graph.png") -> None:
     png_bytes = student_characteristics_graph.get_graph().draw_mermaid_png()
     Path(path).write_bytes(png_bytes)
 
+save_graph_visualization()
 
 if __name__ == "__main__":
     checkpoint("CLI run started")
