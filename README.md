@@ -23,6 +23,7 @@ We set up multi-agents system to simulate various style of students' answers and
 
 ### Tech stack
 - Langgraph, langchain
+- uv
 - Aitta backend API from CSC
 - LLM in PoC: GPT OSS 120B
 
