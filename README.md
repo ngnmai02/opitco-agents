@@ -29,6 +29,27 @@ We set up multi-agents system to simulate various style of students' answers and
 
 ## Dataset
 - 
+## Evaluation Framework
+
+We evaluate the system Performance across the following dimensions
+
+### Accuracy
+- Exact Match (EM)
+- F1 Score
+- Semantic Similarity
+
+### Robustness
+- Paraphrase consistency (performance under reworded questions)
+- Noise robustness (handling typos and incomplete inputs)
+- Score stability under input variation
+
+### Fairness
+- Persona score gap (difference in grading across student personas)
+- Same-answer bias (checking if identical answers receive different scores)
+- Error rate parity across personas
+
+### Consistency
+- Score variance across repeated evaluations
 
 ## TODOs
 - [ ] Looping agentic system 
