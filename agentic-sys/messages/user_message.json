@@ -1,0 +1,25 @@
+{ 
+  "evaluationContext": { 
+    "evaluationMode": "feedback_only", 
+    "languageMode": false, 
+    "feedbackLanguage": "fi", 
+    "useAgeDefaults": true, 
+    "ageContext": { 
+      "groupAge": 12 
+    }, 
+    "rubric": { 
+      "mode": "default", 
+      "teacherCriteria": [], 
+      "defaultCriteria": [ 
+        "Default rubric criterion 1", 
+        "Default rubric criterion 2" 
+      ] 
+    } 
+  }, 
+  "task": { 
+    "question": "Explain why plants need sunlight.", 
+    "studentAnswer": "Plants need sunlight to make energy through photosynthesis." 
+  } 
+} 
+
+
