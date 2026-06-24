@@ -1,7 +1,6 @@
 from typing import Literal
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command, RetryPolicy, Send
-from langchain_openai import ChatOpenAI
 from langchain.messages import HumanMessage, SystemMessage
 from pathlib import Path
 from config import *
@@ -13,17 +12,52 @@ def checkpoint(message: str) -> None:
     print(f"[checkpoint] {message}", flush=True)
 
 
-# TODO: EDIT MODEL API
-checkpoint("Initializing LLM clients")
-
-
 # System prompt of the feedback AI sys
-# TODO: EDIT BOTH FILE CONTENT
 checkpoint("-----------------")
-checkpoint("Retrieving system prompts")
-FEEDBACK_SYSTEM_PROMPT_PATH = Path(__file__).with_name("feedback_sys_prompt.txt") 
-checkpoint(FEEDBACK_SYSTEM_PROMPT_PATH)
-JUDGE_SYSTEM_PROMPT_PATH = Path(__file__).with_name("judge_sys_prompt.txt") 
+checkpoint("Read personas generator sys prompt")
+file_path = Path(__file__).parent / "messages" / "PERSONAS_SYSTEM_PROMPT.txt"
+PERSONAS_SYSTEM_PROMPT = file_path.read_text()
+
+checkpoint("Read student role play sys prompt")
+file_path = Path(__file__).parent / "messages" / "STUDENT_RP_SYSTEMP_PROMPT.txt"
+STUDENT_RP_SYSTEM_PROMPT = file_path.read_text()
+
+checkpoint("Read AI evaluator sys prompt")
+file_path= Path(__file__).parent / "messages" / "FEEDBACK_SYSTEM_PROMPT.txt"
+FEEDBACK_SYSTEM_PROMPT = file_path.read_text()
+
+checkpoint("Read judge LLM sys prompt")
+file_path = Path(__file__).parent / "messages" / "JUDGE_SYSTEM_PROMPT.txt"
+JUDGE_SYSTEM_PROMPT = file_path.read_text()
+
+
+checkpoint("-----------------")
+checkpoint("Initializing LLM agents")
+
+personas_generator_llm = generator_llm.with_structured_output(
+    StudentPersonaSchema,
+    method="json_schema",
+    strict=True,
+)
+
+student_rp_llm = llm.with_structured_output(
+    StudentAnswerSchema, 
+    method="json_schema",
+    strict=True,
+)
+
+evaluator_llm = feedback_llm.with_structured_output(
+    EvaluationResponse,
+    method="json_schema",
+    strict=True,
+)
+
+judge_eval_llm = judge_llm.with_structured_output(
+    JudgeModelSchema,
+    method="json_schema",
+    strict=True,
+)
+
 
 # ----------------------------
 # functions
