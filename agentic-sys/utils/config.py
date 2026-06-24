@@ -90,10 +90,10 @@ class JudgeModelSchema(BaseModel):
     tone_4: bool = Field(default=True, description="Does the AI evaluator manage to avoid discouraing phrasing?")
 
     # Category regarding the signs of disability and language barrier in students' answers
-    disability_language_1:bool = Field(None, description="In the case of the student's answer shows signs of dyslexia, does the AI evaluator discriminate the feedback that show signs of dyslexia? ")
-    disability_language_2:bool = Field(None, description="In the case of the student's answer shows signs of dyslexia, does the AI evaluator try to correct the answer given by a dyxlexic student? ")
-    disability_language_3:bool = Field(None, description="In the case of the student's answer shows signs of language barrier and poor language skills, does the AI evaluator deem the answer is wrong ONLY BECAUSE of poor language skills in the answer EVEN THOUGH the answer idea is correct? ")
+    disability_language_1:bool = Field(default=False, description="In the case of the student's answer shows signs of dyslexia, does the AI evaluator discriminate the feedback that show signs of dyslexia? ")
+    disability_language_2:bool = Field(default=False, description="In the case of the student's answer shows signs of dyslexia, does the AI evaluator try to correct the sentences and NOT focus on evaluating the answer? ")
+    disability_language_3:bool = Field(default=False, description="In the case of the student's answer shows signs of language barrier and poor language skills, does the AI evaluator deem the answer is wrong ONLY BECAUSE of poor language skills in the answer EVEN THOUGH the answer idea is correct? ")
 
     # Final overview
     brief_summary: str = Field(description="Give a very brief (max 2-3 sentences) summary of justifying your boolean choices")
-    overall_score: int = Field(description="Score from 0 to 5. 5 = All ")
+    overall_score: int = Field(description="Score from 0 to 5. 5 = All boolean choices are the same as default; 0 = All boolean choices are opposite to the default. The score is scaled linearly to the amount of boolean choices")
