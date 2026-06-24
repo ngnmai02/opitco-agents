@@ -15,23 +15,7 @@ def checkpoint(message: str) -> None:
 
 # TODO: EDIT MODEL API
 checkpoint("Initializing LLM clients")
-llm = ChatOpenAI(
-    api_key=API_KEY,
-    base_url="https://aitta-api.csc.fi/openai/v1",
-    model="openai/gpt-oss-120b"
-)
 
-feedback_llm = ChatOpenAI(
-    api_key=API_KEY,
-    base_url="https://aitta-api.csc.fi/openai/v1",
-    model="openai/gpt-oss-120b"
-)
-
-judge_llm = ChatOpenAI(
-    api_key=API_KEY,
-    base_url="https://aitta-api.csc.fi/openai/v1",
-    model="openai/gpt-oss-120b"
-)
 
 # System prompt of the feedback AI sys
 # TODO: EDIT BOTH FILE CONTENT
