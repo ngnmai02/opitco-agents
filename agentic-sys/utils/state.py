@@ -1,52 +1,28 @@
-from typing import TypedDict, Literal, Annotated
-from pydantic import BaseModel, Field
+from typing import TypedDict, Annotated
 import operator
+from config import EvaluationResponse, JudgeModelSchema, StudentPersonaSchema
 
-
-class StudentPersonas(BaseModel): 
-    gender: Literal["female", "male", "other"]
-    age: int
-    learning_stype: str = Field(description="")
-    comm_style: str = Field(description="")
-    negative_traits: str = Field(description="")
-    positive_traits: str = Field(description="")
-
-class PersonasGroup(BaseModel): 
-    groups: list[StudentPersonas] = Field(
-        min_length=3,
-        max_length=3,
-        description="Three distinct student characteristics.",
-    )
-
-class FeedbackJudgeResult(BaseModel): 
-    score: int = Field(
-        ge=1,
-        le=10,
-        description="How good the feedback is, from 1 to 10.",
-    )
-    reason: str = Field(description="Short explanation for the score.")
 
 class QnAState(TypedDict): 
     question: str
     subject: list[str] # change later when found dataset
     answer: str
-    feedback: str
+    feedback: EvaluationResponse | None
     gt_answer: str
-    judge_score: dict | None # establish the judge score later
+    judge_score: JudgeModelSchema | None
     
 class aggQnAState(TypedDict): 
-    student: StudentPersonas | None # student personal
+    student: StudentPersonaSchema | None # student personal
     qna_result: QnAState | None 
 
 class GraphState(QnAState): 
-    personas: list[StudentPersonas]
+    personas: list[StudentPersonaSchema]
     used_persona_signatures: list[str] # to avoid repeating personas
     qna_results: Annotated[list[aggQnAState], operator.add] 
     evaluated_qna_results: list[aggQnAState]
     final_response: str
 
 class PersonaWorkerState(QnAState): 
-    student: StudentPersonas
+    student: StudentPersonaSchema
     agent_name: str
-
 

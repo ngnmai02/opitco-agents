@@ -63,25 +63,26 @@ judge_eval_llm = judge_llm.with_structured_output(
 # functions
 
 # PERSONAS GENERATOR 
-def persona_signature(persona: StudentPersonaSchema) -> str:
+def persona_signature(persona: StudentPersonas) -> str:
     """Create a stable, compact description used to detect repeated personas."""
     
     return "|".join(
         [
+            persona.gender.lower().strip(),
             str(persona.age // 5 * 5),
-            ",".join(sorted(persona.learning_styles)),
-            ",".join(sorted(persona.motivation_profile)),
-            persona.engagement_level,
-            ",".join(sorted(persona.challenges)),
+            persona.learning_stype.lower().strip(),
+            persona.comm_style.lower().strip(),
+            persona.negative_traits.lower().strip(),
+            persona.positive_traits.lower().strip(),
         ]
     )
 
 def unique_personas(
-    personas: list[StudentPersonaSchema], used_signatures: set[str]
-) -> list[StudentPersonaSchema]:
+    personas: list[StudentPersonas], used_signatures: set[str]
+) -> list[StudentPersonas]:
     """Filter out repeated persona types within this run and across prior runs."""
 
-    accepted: list[StudentPersonaSchema] = []
+    accepted: list[StudentPersonas] = []
     seen = set(used_signatures)
 
     for persona in personas:
@@ -98,40 +99,37 @@ def generate_student_personas(state: GraphState) -> dict:
 
     checkpoint("-----------------")
     checkpoint("Node start: generate student personas")
+    generator = llm.with_structured_output(PersonasGroup)
     used_signatures = set(state.get("used_persona_signatures", []))
     prior_personas = "\n".join(sorted(used_signatures)) or "None yet."
 
-    accepted: list[StudentPersonaSchema] = []
+    accepted: list[StudentPersonas] = []
     number_of_attempts = 5
     for attempt in range(number_of_attempts):
         checkpoint(f"Generating student personas, attempt {attempt + 1}/{number_of_attempts}")
         prompt = f"""
-        {PERSONAS_SYSTEM_PROMPT}
+        Generate exactly three student personas that can be encountered at a typical classroom
 
-        Generate one student persona that can be encountered in a typical classroom.
-        The persona must follow the configured student persona schema exactly.
-
-        Do not generate any persona type matching these previously used persona signatures:
+        Do not generate any persona type matching these previously used persona
+        signatures:
         {prior_personas}
 
         Attempt: {attempt + 1}
 
-        Make the persona distinct by age, learning styles, motivation profile,
-        engagement level, and challenges. Avoid generic duplicates.
+        Make each persona distinct by age, learning_stype, comm_style,
+        negative_traits, and positive_traits. Avoid generic duplicates like
+        three shy visual learners or three highly motivated high achievers.
         """
-        generated = personas_generator_llm.invoke(prompt)
-        candidates = unique_personas([generated], used_signatures)
-        checkpoint(f"Generated {len(candidates)} unique persona candidate")
-
-        if candidates:
-            accepted.extend(candidates)
-            used_signatures.update(persona_signature(persona) for persona in candidates)
-            prior_personas = "\n".join(sorted(used_signatures))
-
+        generated = generator.invoke(prompt)
+        checkpoint(f"Generated {len(generated.groups)} persona candidates")
+        accepted = unique_personas(generated.groups, used_signatures)
         checkpoint(f"Accepted {len(accepted)} unique persona candidates")
 
         if len(accepted) == 3:
             break
+
+        used_signatures.update(persona_signature(persona) for persona in accepted)
+        prior_personas = "\n".join(sorted(used_signatures))
 
     # if len(accepted) != number_of_attempts:
     #    raise ValueError(
@@ -166,7 +164,7 @@ def route_personas_to_agents(state: GraphState) -> list[Send]:
                     "question": state["question"],
                     "subject": state["subject"],
                     "answer": "",
-                    "feedback": None,
+                    "feedback": "",
                     "gt_answer": state.get("gt_answer", ""),
                     "judge_score": None,
                 },
@@ -188,19 +186,17 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
     messages = [
         SystemMessage(
             content=f"""
-            {STUDENT_RP_SYSTEM_PROMPT}
-
             You are acting as this student persona:
+            gender: {student.gender}
             age: {student.age}
-            learning_styles: {", ".join(student.learning_styles)}
-            motivation_profile: {", ".join(student.motivation_profile)}
-            engagement_level: {student.engagement_level}
-            challenges: {", ".join(student.challenges) or "none"}
+            learning_stype: {student.learning_stype}
+            comm_style: {student.comm_style}
+            negative_traits: {student.negative_traits}
+            positive_traits: {student.positive_traits}
 
             Answer as this student would answer in a typical classroom setting. 
             Reflect both strengths and weaknesses of such student through your words and answering style. 
             Do not mention that you are an AI or that this is a role.
-            Put the student's answer in the structured output field named question.
             """
         ),
         HumanMessage(
@@ -213,15 +209,14 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
     ]
 
 
-    student_answer = student_rp_llm.invoke(messages)
-    answer = student_answer.question
+    answer = llm.invoke(messages).content
     checkpoint(f"Answer LLM complete for {state.get('agent_name', 'student_agent')}")
 
     qna_result: QnAState = {
         "question": state["question"],
         "subject": state["subject"],
         "answer": answer,
-        "feedback": None,
+        "feedback": "",
         "gt_answer": state.get("gt_answer", ""),
         "judge_score": None,
     }
@@ -251,11 +246,12 @@ def aggregate_qna_results(state: GraphState) -> dict:
 
         sections.append(
             f"## Persona {index}\n"
+            f"- Gender: {student.gender}\n"
             f"- Age: {student.age}\n"
-            f"- Learning styles: {', '.join(student.learning_styles)}\n"
-            f"- Motivation profile: {', '.join(student.motivation_profile)}\n"
-            f"- Engagement level: {student.engagement_level}\n"
-            f"- Challenges: {', '.join(student.challenges) or 'none'}\n\n"
+            f"- Learning style: {student.learning_stype}\n"
+            f"- Communication style: {student.comm_style}\n"
+            f"- Negative traits: {student.negative_traits}\n"
+            f"- Positive traits: {student.positive_traits}\n\n"
             f"Question: {qna['question']}\n\n"
             f"Answer:\n{qna['answer']}"
         )
@@ -268,7 +264,7 @@ def aggregate_qna_results(state: GraphState) -> dict:
 def load_feedback_system_prompt() -> str:
     """Load the external system prompt used by the feedback LLM."""
 
-    return FEEDBACK_SYSTEM_PROMPT
+    return FEEDBACK_SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 
 def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
@@ -295,21 +291,21 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
             evaluated_results.append(item)
             continue
 
-        feedback = None
+        feedback = ""
         if qna.get("gt_answer"):
-            feedback = evaluator_llm.invoke(
+            feedback = feedback_llm.invoke(
                 [
                     SystemMessage(content=system_prompt),
                     HumanMessage(
                         content=(
                             f"Student answer:\n{qna['answer']}\n\n"
-                            f"Ground-truth answer:\n{qna['gt_answer']}\n\n"
-                            f"Original question:\n{qna['question']}\n\n"
+                            f"Ground-truth answer:\n{qna['gt_answer']}"
+                            f"Original question:\n{qna['question']}"
                             f"Subject that question belongs to:\n{qna['subject']}"
                         )
                     ),
                 ]
-            )
+            ).content
             checkpoint(f"Feedback LLM complete for answer {index}")
 
         evaluated_qna: QnAState = {
@@ -332,11 +328,12 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
 
 
 def judge_feedback_quality(state: GraphState) -> dict:
-    """Judge whether the feedback follows the configured judge schema."""
+    """Judge how well the feedback LLM responded, scoring feedback from 1 to 10."""
 
     checkpoint("-----------------")
     checkpoint("Node start: judge_feedback_quality")
 
+    judge = judge_llm.with_structured_output(FeedbackJudgeResult)
     judged_results: list[aggQnAState] = []
     results = state.get("evaluated_qna_results") or state["qna_results"]
 
@@ -352,9 +349,15 @@ def judge_feedback_quality(state: GraphState) -> dict:
         judge_result = None
         if qna.get("feedback"):
             # TODO: CHANGE TO THE NEWER SYSTEM PROMPT AFTER EVALUATING WHICH ONE 
-            judge_result = judge_eval_llm.invoke(
+            judge_result = judge.invoke(
                 [
-                    SystemMessage(content=JUDGE_SYSTEM_PROMPT),
+                    SystemMessage(
+                        content=(
+                            "You are judging educational feedback quality. "
+                            "Score how useful, accurate, clear, and actionable "
+                            "the feedback is from 1 to 10."
+                        )
+                    ),
                     HumanMessage(
                         content=f"""
                         Original question: 
@@ -370,7 +373,7 @@ def judge_feedback_quality(state: GraphState) -> dict:
                         {qna["gt_answer"]}
 
                         Feedback to judge:
-                        {qna["feedback"].model_dump()}
+                        {qna["feedback"]}
                         """
                     ),
                 ]
@@ -383,7 +386,7 @@ def judge_feedback_quality(state: GraphState) -> dict:
             "answer": qna["answer"],
             "feedback": qna["feedback"],
             "gt_answer": qna["gt_answer"],
-            "judge_score": judge_result if judge_result else None,
+            "judge_score": judge_result.model_dump() if judge_result else None,
         }
         judged_results.append(
             {
@@ -451,7 +454,7 @@ if __name__ == "__main__":
         "question": "Why is a for loop useful in Python?",
         "subject": ["introductory Python programming"],
         "answer": "",
-        "feedback": None,
+        "feedback": "",
         "gt_answer": "A for loop repeats a block of code for each item in a sequence.",
         "judge_score": None,
         "used_persona_signatures": [],

@@ -1,3 +1,5 @@
 .env
 .venv/
 uv.lock
+agentic-sys/data/*
+agentic-sys/resource_todogroup/*
