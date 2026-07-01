@@ -2,21 +2,18 @@
 Testing set up for multi agent for Opitco case in EUSAiR 
 
 ## About the experiment
-This experiment simulates a user survey experiment to evaluate the AI feedback system. This repository provides a PoC of how we would set up such experiment. 
-We set up multi-agents system to simulate various style of students' answers and thus, feed these answers to the AI feedback system. The 
+This experiment simulates a user survey experiment to evaluate the AI evaluator system. This repository provides details on how we would set up such experiment. 
+We set up multi-agents system to simulate various style of students' answers and thus, feed these answers to the AI evaluator system. The feedback from the AI evaluator will be judged and scored by a judge LLM agent. 
 
 ## Testing scope
 - The experiment focuses on the aspect of Fairness and Robustness of the system.
 - The generated students personas are defined by certain categories:
-    - Gender
     - Age
     - Learning style
-    - Communication style
-    - Positive / Negative traits
-    - (To be implemented) Disabilities, english skills
-- The evaluation metric in the PoC is minimized for the purpose of demonstration.
+    - Motivation profile
+    - Engagement level
+    - Learning challenges
 - Currently, we aim to use LLM-as-a-judge to conduct the evaluating process. The metrics will be provied detailedly. 
-- System prompt of LLM-as-a-judge will be finalized based on a separated test.
 
 ## Set up
 ![alt text](student_characteristics_graph.png)
@@ -34,9 +31,8 @@ We set up multi-agents system to simulate various style of students' answers and
 We evaluate the system Performance across the following dimensions
 
 ### Accuracy
-- Exact Match (EM)
-- F1 Score
-- Semantic Similarity
+- Maintain consistency in only giving out feedback and not final score
+- Provide helpful feedback with no direct correct answer
 
 ### Robustness
 - Paraphrase consistency (performance under reworded questions)
@@ -53,6 +49,6 @@ We evaluate the system Performance across the following dimensions
 
 ## TODOs
 - [ ] Looping agentic system 
-- [ ] Setting up the datasets
-- [ ] Setting up the evaluation metrics 
+- [x] Setting up the datasets
+- [x] Setting up the evaluation  
 - [ ] Evaluating the LLM-as-a-judge and setting up system prompt
