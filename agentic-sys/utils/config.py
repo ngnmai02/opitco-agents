@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 load_dotenv()  # reads .env from the current project directory
 
 API_KEY = os.getenv("AITTA_API")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # -----------------------------------------
 # TEMPORARY 
@@ -19,6 +20,10 @@ generator_llm = ChatOpenAI(
     base_url="https://aitta-api.csc.fi/openai/v1",
     model="openai/gpt-oss-120b"
 )
+
+# generator_llm = ChatOpenAI(
+#     model="gpt-5.5",
+# )
 
 # llama-3.3-70b
 # Role play as student
@@ -155,7 +160,8 @@ class StudentPersonaSchema(BaseModel):
     challenges: List[
         Literal[
             "dyslexia",
-            "poor english language skills"
+            "poor english language skills",
+            "none"
         ]
     ] = Field(
         default_factory=list,

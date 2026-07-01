@@ -15,19 +15,19 @@ def checkpoint(message: str) -> None:
 # System prompt of the feedback AI sys
 checkpoint("-----------------")
 checkpoint("Read personas generator sys prompt")
-file_path = Path(__file__).parent / "messages" / "PERSONAS_SYSTEM_PROMPT.txt"
+file_path = Path(__file__).parent.parent / "messages" / "PERSONAS_SYSTEM_PROMPT.txt"
 PERSONAS_SYSTEM_PROMPT = file_path.read_text()
 
 checkpoint("Read student role play sys prompt")
-file_path = Path(__file__).parent / "messages" / "STUDENT_RP_SYSTEMP_PROMPT.txt"
+file_path = Path(__file__).parent.parent / "messages" / "STUDENT_RP_SYSTEM_PROMPT.txt"
 STUDENT_RP_SYSTEM_PROMPT = file_path.read_text()
 
 checkpoint("Read AI evaluator sys prompt")
-file_path= Path(__file__).parent / "messages" / "FEEDBACK_SYSTEM_PROMPT.txt"
+file_path= Path(__file__).parent.parent / "messages" / "FEEDBACK_SYSTEM_PROMPT.txt"
 FEEDBACK_SYSTEM_PROMPT = file_path.read_text()
 
 checkpoint("Read judge LLM sys prompt")
-file_path = Path(__file__).parent / "messages" / "JUDGE_SYSTEM_PROMPT.txt"
+file_path = Path(__file__).parent.parent / "messages" / "JUDGE_SYSTEM_PROMPT.txt"
 JUDGE_SYSTEM_PROMPT = file_path.read_text()
 
 
@@ -106,18 +106,9 @@ def generate_student_personas(state: GraphState) -> dict:
     for attempt in range(number_of_attempts):
         checkpoint(f"Generating student personas, attempt {attempt + 1}/{number_of_attempts}")
         prompt = f"""
-        {PERSONAS_SYSTEM_PROMPT}
-
-        Generate one student persona that can be encountered in a typical classroom.
-        The persona must follow the configured student persona schema exactly.
-
         Do not generate any persona type matching these previously used persona signatures:
         {prior_personas}
-
-        Attempt: {attempt + 1}
-
-        Make the persona distinct by age, learning styles, motivation profile,
-        engagement level, and challenges. Avoid generic duplicates.
+        {PERSONAS_SYSTEM_PROMPT}
         """
         generated = personas_generator_llm.invoke(prompt)
         candidates = unique_personas([generated], used_signatures)
@@ -189,18 +180,6 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
         SystemMessage(
             content=f"""
             {STUDENT_RP_SYSTEM_PROMPT}
-
-            You are acting as this student persona:
-            age: {student.age}
-            learning_styles: {", ".join(student.learning_styles)}
-            motivation_profile: {", ".join(student.motivation_profile)}
-            engagement_level: {student.engagement_level}
-            challenges: {", ".join(student.challenges) or "none"}
-
-            Answer as this student would answer in a typical classroom setting. 
-            Reflect both strengths and weaknesses of such student through your words and answering style. 
-            Do not mention that you are an AI or that this is a role.
-            Put the student's answer in the structured output field named question.
             """
         ),
         HumanMessage(
@@ -211,7 +190,6 @@ def answer_as_student_persona(state: PersonaWorkerState) -> dict:
             """
         ),
     ]
-
 
     student_answer = student_rp_llm.invoke(messages)
     answer = student_answer.question
@@ -278,6 +256,7 @@ def evaluate_answers_against_ground_truth(state: GraphState) -> dict:
     answer and ground-truth answer.
     It does not receive persona
     """
+    # TODO: RESET UP THE EVALUATOR PAYLOAD TO COMPATIBLE WITH MODULES
 
     checkpoint("-----------------")
     checkpoint("Node start: evaluate_answers_against_ground_truth")
@@ -461,6 +440,9 @@ if __name__ == "__main__":
 
     result = student_characteristics_graph.invoke(example_state)
     print(result["final_response"])
+    print(result["feedback"])
+    print(result["judge_score"])
+
 
     # Reuse this list in later calls to avoid regenerating the same persona types.
     already_used = result["used_persona_signatures"]
